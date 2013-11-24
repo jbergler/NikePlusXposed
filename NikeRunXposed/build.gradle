@@ -1,0 +1,26 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:0.6.1+'
+    }
+}
+apply plugin: 'android'
+
+android {
+    // The Xposed framework should not be packaged with the apk, so we cannot add it as a dependency
+    // Instead, it should be added as an sdk add-on, see http://forum.xda-developers.com/showthread.php?p=41904291#post41904291
+    compileSdkVersion 'rovo89:Xposed Bridge API 2.1:15'
+    buildToolsVersion "17.0.0"
+
+    defaultConfig {
+        minSdkVersion 15
+        targetSdkVersion 17
+    }
+}
+
+
+dependencies {
+    compile 'com.jakewharton.timber:timber:2.1.+'
+}

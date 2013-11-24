@@ -1,0 +1,36 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.jonasbergler.xposed.nikerun"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <uses-sdk android:minSdkVersion="15" android:targetSdkVersion="17" />
+
+    <application android:allowBackup="true"
+        android:label="@string/app_name"
+        android:icon="@drawable/ic_launcher"
+        android:name=".NikeRun">
+        <meta-data android:value="true" android:name="xposedmodule"/>
+        <meta-data android:value="2.0*" android:name="xposedminversion"/>
+        <meta-data android:value="Hooks into Nike+ Running app to make realtime workout data available externally." android:name="xposeddescription"/>
+
+        <receiver android:name=".MediaReceiver">
+            <intent-filter>
+                <action android:name="com.android.music.metachanged" />
+                <action android:name="com.android.music.playstatechanged" />
+                <action android:name="com.android.music.playbackcomplete" />
+                <action android:name="com.android.music.queuechanged" />
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".UpdateReceiver">
+            <intent-filter>
+                <action android:name="com.jonasbergler.xposed.nikerun.start" />
+                <action android:name="com.jonasbergler.xposed.nikerun.stop" />
+                <action android:name="com.jonasbergler.xposed.nikerun.update" />
+                <action android:name="com.jonasbergler.xposed.nikerun.pause" />
+                <action android:name="com.jonasbergler.xposed.nikerun.resume" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>
