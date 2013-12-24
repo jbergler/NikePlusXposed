@@ -20,8 +20,7 @@ android {
     }
 }
 
-
 dependencies {
     compile 'com.jakewharton.timber:timber:2.1.+'
-    compile files('libs/guava-14.0.1.jar')
+    compile 'com.google.guava:guava:14.0.1'
 }
