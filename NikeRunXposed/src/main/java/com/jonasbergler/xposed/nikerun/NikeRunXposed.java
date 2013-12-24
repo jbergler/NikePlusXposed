@@ -109,7 +109,9 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 float distanceRaw = (float) getFloatField(((Object) callMethod(run, "getDistanceUnitValue")), "value");
                 float durationRaw = (float) getFloatField(((Object) callMethod(run, "getDurationUnitValue")), "value");
                 //double paceRaw = (double) getDoubleField(run, "currentPace");
-                int paceRaw = (int) (durationRaw / distanceRaw) / 1000;
+                int paceRaw = 0;
+                if (durationRaw != 0 && distanceRaw != 0)
+                    paceRaw = (int) (durationRaw / distanceRaw) / 1000;
 
                 String distance = String.format("%.2f", distanceRaw);
                 String duration = String.format("%.0f", durationRaw / 1000);
