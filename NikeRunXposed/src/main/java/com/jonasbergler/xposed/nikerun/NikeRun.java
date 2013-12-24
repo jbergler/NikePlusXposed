@@ -88,9 +88,6 @@ public class NikeRun extends Application {
 
         // Setup Debugging
         Timber.plant(new DebugTree());
-
-        // Customize pebble watch app
-        customizeWatchApp();
     }
 
     /**
@@ -171,6 +168,10 @@ public class NikeRun extends Application {
     }
 
     public void setRunning() {
+
+        // Customize pebble watch app
+        customizeWatchApp();
+
         //Start watch Sports App
         startWatchApp();
 
@@ -214,11 +215,6 @@ public class NikeRun extends Application {
 
         //Trigger Sports App
         PebbleKit.startAppOnPebble(getApplicationContext(), Constants.SPORTS_UUID);
-
-        //Change units to metric
-        PebbleDictionary data = new PebbleDictionary();
-        data.addUint8(Constants.SPORTS_UNITS_KEY,(byte)Constants.SPORTS_UNITS_METRIC);
-        PebbleKit.sendDataToPebble(getApplicationContext(), Constants.SPORTS_UUID, data);
     }
 
     // Send a broadcast to close Sports App on the connected Pebble
@@ -237,20 +233,21 @@ public class NikeRun extends Application {
                 getApplicationContext(), Constants.PebbleAppType.SPORTS, customAppName, customIcon);
     }
 
-    // Push (distance, time, pace) data to be displayed on Pebble's Sports app.
+    // Push (distance, time, pace) data to be displayed on Pebble's Sports App.
     public void updateWatchApp() {
 
         String time = getData(NikeRun.DATA_DURATION);
         String distance = getData(NikeRun.DATA_DISTANCE);
-        String addl_data = getData(NikeRun.DATA_PACE);
+        String pace = getData(NikeRun.DATA_PACE);
 
-        Timber.d("Updating Watch App with values: Dur='" + time + "' Dist='"+ distance +"' Pace='"+ addl_data +"'");
+        Timber.d("Updating Watch App with values: Dur='" + time + "' Dist='" + distance + "' Pace='" + pace + "'");
 
         PebbleDictionary data = new PebbleDictionary();
         data.addString(Constants.SPORTS_TIME_KEY, time);
         data.addString(Constants.SPORTS_DISTANCE_KEY, distance);
-        data.addString(Constants.SPORTS_DATA_KEY, addl_data);
-        data.addUint8(Constants.SPORTS_LABEL_KEY,  (byte)Constants.SPORTS_DATA_PACE);
+        data.addString(Constants.SPORTS_DATA_KEY, pace);
+        data.addUint8(Constants.SPORTS_LABEL_KEY, (byte)Constants.SPORTS_DATA_PACE); // Set pace label
+        data.addUint8(Constants.SPORTS_UNITS_KEY, (byte)Constants.SPORTS_UNITS_METRIC); // Unit metrics
 
         PebbleKit.sendDataToPebble(getApplicationContext(), Constants.SPORTS_UUID, data);
     }
