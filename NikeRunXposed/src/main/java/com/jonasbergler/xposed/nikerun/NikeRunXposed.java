@@ -15,7 +15,6 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 import static de.robv.android.xposed.XposedHelpers.callMethod;
 import static de.robv.android.xposed.XposedHelpers.getObjectField;
 import static de.robv.android.xposed.XposedHelpers.getFloatField;
-import static de.robv.android.xposed.XposedHelpers.getDoubleField;
 import static de.robv.android.xposed.XposedHelpers.getBooleanField;
 import static de.robv.android.xposed.XposedHelpers.findAndHookMethod;
 
@@ -109,12 +108,16 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 Object run = (Object) getObjectField(param.thisObject, "currentRun");
                 float distanceRaw = (float) getFloatField(((Object) callMethod(run, "getDistanceUnitValue")), "value");
                 float durationRaw = (float) getFloatField(((Object) callMethod(run, "getDurationUnitValue")), "value");
-                double paceRaw = (double) getDoubleField(run, "currentPace");
+                //double paceRaw = (double) getDoubleField(run, "currentPace");
+                int paceRaw = 0;
+                if (durationRaw != 0 && distanceRaw != 0)
+                    paceRaw = (int) (durationRaw / distanceRaw) / 1000;
 
                 String distance = String.format("%.2f", distanceRaw);
                 String duration = String.format("%.0f", durationRaw / 1000);
-                String pace = String.format("%.2f", paceRaw);
+                String pace = String.format("%d", paceRaw );
 
+                XposedBridge.log("NikeRun: Pace " + pace);
 //                XposedBridge.log("NikeRun: updateScreenInfo()");
 //                XposedBridge.log("NikeRun: distance=" + distanceRaw + " / " + distance);
 //                XposedBridge.log("NikeRun: duration=" + durationRaw + " / " + duration);

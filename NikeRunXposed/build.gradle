@@ -20,7 +20,7 @@ android {
     }
 }
 
-
 dependencies {
     compile 'com.jakewharton.timber:timber:2.1.+'
+    compile 'com.google.guava:guava:14.0.1'
 }

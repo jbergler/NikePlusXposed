@@ -34,9 +34,9 @@ public class UpdateReceiver extends BroadcastReceiver {
             appContext.setRunning();
         }
         else if (action.equals(NikeRun.INTENT_UPDATE)) {
-            appContext.setData(NikeRun.DATA_DISTANCE, intent.getStringExtra(NikeRun.DATA_DISTANCE) + " km");
+            appContext.setData(NikeRun.DATA_DISTANCE, intent.getStringExtra(NikeRun.DATA_DISTANCE));
             appContext.setData(NikeRun.DATA_DURATION,formatSeconds(intent.getStringExtra(NikeRun.DATA_DURATION)));
-            appContext.setData(NikeRun.DATA_PACE, intent.getStringExtra(NikeRun.DATA_PACE));
+            appContext.setData(NikeRun.DATA_PACE, formatSeconds(intent.getStringExtra(NikeRun.DATA_PACE)));
         }
         else {
             Timber.d("Unknown intent: " + intent.getAction());
@@ -60,9 +60,8 @@ public class UpdateReceiver extends BroadcastReceiver {
         int hours   = (int) ((raw / (1000*60*60)) % 24);
 
         String time = "";
-        if (hours > 0) time += hours + "h";
-        if (hours > 0 || minutes > 0) time += " " + minutes + "m";
-        time += " " + seconds + "s";
+        if (hours > 0) time += hours + ":";
+        time += String.format("%d:%02d", minutes, seconds);
 
         return time.trim();
     }
