@@ -29,8 +29,17 @@
                 <action android:name="com.jonasbergler.xposed.nikerun.update" />
                 <action android:name="com.jonasbergler.xposed.nikerun.pause" />
                 <action android:name="com.jonasbergler.xposed.nikerun.resume" />
+                <action android:name="com.jonasbergler.xposed.nikerun.create" />
+                <action android:name="com.jonasbergler.xposed.nikerun.destroy" />
             </intent-filter>
         </receiver>
+
+        <receiver android:name=".XCmdReceiver">
+            <intent-filter>
+                <action android:name="com.jonasbergler.xposed.nikerun.xcmd" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
