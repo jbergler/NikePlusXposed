@@ -38,6 +38,12 @@ public class UpdateReceiver extends BroadcastReceiver {
             appContext.setData(NikeRun.DATA_DURATION,formatSeconds(intent.getStringExtra(NikeRun.DATA_DURATION)));
             appContext.setData(NikeRun.DATA_PACE, formatSeconds(intent.getStringExtra(NikeRun.DATA_PACE)));
         }
+        else if (action.equals(NikeRun.INTENT_DESTROY)) {
+            appContext.runDestroyed();
+        }
+        else if (action.equals(NikeRun.INTENT_CREATE)) {
+            appContext.runCreated();
+        }
         else {
             Timber.d("Unknown intent: " + intent.getAction());
         }
