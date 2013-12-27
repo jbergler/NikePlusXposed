@@ -6,6 +6,7 @@ package com.jonasbergler.xposed.nikerun;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.IXposedHookLoadPackage;
@@ -13,6 +14,7 @@ import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 
 import static de.robv.android.xposed.XposedHelpers.callMethod;
+import static de.robv.android.xposed.XposedHelpers.getDoubleField;
 import static de.robv.android.xposed.XposedHelpers.getObjectField;
 import static de.robv.android.xposed.XposedHelpers.getFloatField;
 import static de.robv.android.xposed.XposedHelpers.getBooleanField;
@@ -21,6 +23,8 @@ import static de.robv.android.xposed.XposedHelpers.findAndHookMethod;
 public class NikeRunXposed implements IXposedHookLoadPackage {
 
     private long lastUpdated = 0;
+    private XCmdReceiver xCmdReceiver = null;
+    private final int PACE_MAGIC_NUM = 960;
 
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
         if (!lpparam.packageName.equals("com.nike.plusgps"))
@@ -40,6 +44,47 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 context.sendBroadcast(intent);
 
                 XposedBridge.log("NikeRun: Run Started");
+            }
+        });
+
+        findAndHookMethod("com.nike.plusgps.RunActivity", lpparam.classLoader, "onCreate", android.os.Bundle.class, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+
+                // Register broadcast receiver in NikeRunXposed process
+                Object runAct = (Object) getObjectField(param.thisObject, "runInfoAndControlView");
+                Context context = (Context) callMethod(param.thisObject, "getApplicationContext");
+                xCmdReceiver = new XCmdReceiver(runAct);
+                context.registerReceiver(xCmdReceiver,
+                        new IntentFilter(NikeRun.INTENT_XCMD),
+                        NikeRun.MY_PACKAGE + ".BROADCAST_PERMISSION",
+                        null);
+
+                Intent intent = new Intent();
+                intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+                intent.setAction(NikeRun.INTENT_CREATE);
+                context.sendBroadcast(intent);
+
+                XposedBridge.log("NikeRun: Run Create");
+            }
+        });
+
+        findAndHookMethod("com.nike.plusgps.RunActivity", lpparam.classLoader, "onDestroy",new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+
+                Context context = (Context) callMethod(param.thisObject, "getApplicationContext");
+
+                // Reset run control instance on activity destroy
+                if (xCmdReceiver != null)
+                    context.unregisterReceiver(xCmdReceiver);
+
+                Intent intent = new Intent();
+                intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+                intent.setAction(NikeRun.INTENT_DESTROY);
+                context.sendBroadcast(intent);
+
+                XposedBridge.log("NikeRun: Run Destroy");
             }
         });
 
@@ -108,16 +153,17 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 Object run = (Object) getObjectField(param.thisObject, "currentRun");
                 float distanceRaw = (float) getFloatField(((Object) callMethod(run, "getDistanceUnitValue")), "value");
                 float durationRaw = (float) getFloatField(((Object) callMethod(run, "getDurationUnitValue")), "value");
-                //double paceRaw = (double) getDoubleField(run, "currentPace");
-                int paceRaw = 0;
-                if (durationRaw != 0 && distanceRaw != 0)
-                    paceRaw = (int) (durationRaw / distanceRaw) / 1000;
+                double paceRaw = (double) getDoubleField(run, "currentPace");
+
+                // Convert current pace value to seconds/km
+                if (paceRaw != 0) {
+                    paceRaw = PACE_MAGIC_NUM / paceRaw;
+                }
 
                 String distance = String.format("%.2f", distanceRaw);
                 String duration = String.format("%.0f", durationRaw / 1000);
-                String pace = String.format("%d", paceRaw );
+                String pace = String.format("%d", (int) paceRaw);
 
-                XposedBridge.log("NikeRun: Pace " + pace);
 //                XposedBridge.log("NikeRun: updateScreenInfo()");
 //                XposedBridge.log("NikeRun: distance=" + distanceRaw + " / " + distance);
 //                XposedBridge.log("NikeRun: duration=" + durationRaw + " / " + duration);
@@ -138,6 +184,6 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
             }
         });
 
-
     } // END handleLoadPackage
+
 }
