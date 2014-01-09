@@ -271,9 +271,9 @@ public class NikeRun extends Application {
 
         PebbleDictionary data = new PebbleDictionary();
 
-        data.addString(Constants.SPORTS_TIME_KEY, ".0:00.");
-        data.addString(Constants.SPORTS_DISTANCE_KEY, "0.00");
-        data.addString(Constants.SPORTS_DATA_KEY, "0:00");
+        data.addString(Constants.SPORTS_TIME_KEY, ":0:");
+        data.addString(Constants.SPORTS_DISTANCE_KEY, ".0.");
+        data.addString(Constants.SPORTS_DATA_KEY, ":0:");
         data.addUint8(Constants.SPORTS_LABEL_KEY, (byte)Constants.SPORTS_DATA_PACE); // Set pace label
 
         // Set configured unit type on watch
@@ -314,8 +314,12 @@ public class NikeRun extends Application {
         PebbleDictionary data = new PebbleDictionary();
 
         //Differentiate not running state
-        if(!this.state.equals(STATE_RUNNING)){
+        if (!this.state.equals(STATE_RUNNING)) {
             time = ":" + time + ":";
+            data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_PAUSED);
+        }
+        else {
+            data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_RUNNING);
         }
 
         Timber.d("Updating Watch App with values: Dur='" + time + "' Dist='" + distance + "' Pace='" + pace + "'");
@@ -375,6 +379,9 @@ public class NikeRun extends Application {
 
         // Start watch Sports App
         startWatchApp();
+
+        // Wait a while before pushing data to watch app
+        try { Thread.sleep(1000); } catch (Exception e) { Timber.d("Error in sleep: " + e.getMessage()); };
 
         // Init watch app data
         initWatchAppData();
