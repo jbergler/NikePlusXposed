@@ -11,6 +11,8 @@ import android.content.IntentFilter;
 
 import com.getpebble.android.kit.Constants;
 
+import java.math.BigDecimal;
+
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.IXposedHookLoadPackage;
@@ -218,7 +220,10 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                     paceRaw = PACE_MAGIC_NUM / paceRaw;
                 }
 
-                String distance = String.format("%.2f", distanceRaw);
+                // Fix distance on watch sometimes being little ahead of nike+ app
+                BigDecimal bd = new BigDecimal(Float.toString(distanceRaw));
+                bd = bd.setScale(2, BigDecimal.ROUND_DOWN);
+                String distance = bd.toString();
                 String duration = String.format("%.0f", durationRaw / 1000);
                 String pace = String.format("%d", (int) paceRaw);
 
