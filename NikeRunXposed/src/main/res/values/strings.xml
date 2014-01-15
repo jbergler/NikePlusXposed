@@ -1,3 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+
     <string name="app_name">Nike+ for Pebble</string>
+
+    <string name="title_activity_settings">Pebble Nike+ Settings</string>
+
+    <string name="pref_unit">Unit type</string>
+    <string name="pref_unit_default">0</string>
+    <string name="pref_send_music">Broadcast to Music app</string>
+    <string name="pref_send_sports">Broadcast to Sports app</string>
+    <string name="pref_pause_on_start">Pause run on start</string>
+    <string name="pref_restart_sports">Restart Sports app </string>
+    <string name="pref_restart_sports_summary_on">Pebble Sports app will re-launch every 30 seconds during run</string>
+    <string name="pref_restart_sports_summary_off">Pebble Sports app will NOT re-launch automatically during run</string>
+
 </resources>

@@ -6,9 +6,12 @@ package com.jonasbergler.xposed.nikerun;
 
 
 import android.app.Application;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.preference.PreferenceManager;
 
 import com.getpebble.android.kit.Constants;
 import com.getpebble.android.kit.PebbleKit;
@@ -33,6 +36,11 @@ public class NikeRun extends Application {
     public static final String INTENT_PAUSE = "com.jonasbergler.xposed.nikerun.pause";
     public static final String INTENT_RESUME = "com.jonasbergler.xposed.nikerun.resume";
     public static final String INTENT_STOP = "com.jonasbergler.xposed.nikerun.stop";
+    public static final String INTENT_CREATE = "com.jonasbergler.xposed.nikerun.create";
+    public static final String INTENT_DESTROY = "com.jonasbergler.xposed.nikerun.destroy";
+    public static final String INTENT_XCMD = "com.jonasbergler.xposed.nikerun.xcmd";
+
+    public static final String MY_PACKAGE = "com.jonasbergler.xposed.nikerun";
 
     public static final String DATA_DURATION = "duration";
     public static final String DATA_DISTANCE = "distance";
@@ -51,11 +59,21 @@ public class NikeRun extends Application {
     public static final String FIELD_ALBUM = "album";
     public static final String[] FIELDS = {FIELD_TRACK, FIELD_ARTIST, FIELD_ALBUM};
 
+    public enum UnitType {KILOMETERS, MILES}
+
     private boolean changed = false;
     private String state = STATE_STOPPED;
 
     private Map<String, String> data;
     private Map<String, Map<String, String>> formats;
+
+    private PebbleKit.PebbleDataReceiver sportsDataHandler = null;
+    private int updateCounter;
+
+    private boolean prefBCMusic = true;
+    private boolean prefBCSportsApp = true;
+    private boolean prefRestartSportsApp = true;
+    public UnitType prefUnitType = UnitType.KILOMETERS;
 
     @Override
     public void onCreate() {
@@ -85,6 +103,7 @@ public class NikeRun extends Application {
 
         // Initialise data
         for (String field : DATA) setData(field, "");
+        updateCounter = 0;
 
         // Setup Debugging
         Timber.plant(new DebugTree());
@@ -113,12 +132,20 @@ public class NikeRun extends Application {
         return result;
     }
 
-    public static String replaceTokens(String text, Map<String, String> replacements) {
+    public String replaceTokens(String text, Map<String, String> replacements) {
         Pattern pattern = Pattern.compile("\\#(.+?)\\#");
         Matcher matcher = pattern.matcher(text);
         StringBuffer buffer = new StringBuffer();
         while (matcher.find()) {
             String replacement = replacements.get(matcher.group(1));
+
+            if (matcher.group(1).equals(DATA_DISTANCE)) {
+                if (prefUnitType == UnitType.KILOMETERS)
+                    replacement += "km";
+                else
+                    replacement += "mi";
+            }
+
             if (replacement != null) {
                 matcher.appendReplacement(buffer, "");
                 buffer.append(replacement);
@@ -134,46 +161,44 @@ public class NikeRun extends Application {
     public void sendUpdatedMetadata() {
         if (!this.changed) return;
 
-        // Setup the intent
-        Intent intent = new Intent();
-        intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
-        intent.setAction("com.android.music.metachanged");
-        intent.putExtra(NikeRun.INTENT_FROM_SELF, "true");
+        // Send broadcast for music app
+        if(prefBCMusic) {
+            // Setup the intent
+            Intent intent = new Intent();
+            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+            intent.setAction("com.android.music.metachanged");
+            intent.putExtra(NikeRun.INTENT_FROM_SELF, "true");
 
-        //Add the data
-        Map<String, String> values = getFormattedMetadata();
+            //Add the data
+            Map<String, String> values = getFormattedMetadata();
 
-        for (String key : values.keySet()) {
-            intent.putExtra(key, values.get(key));
+            for (String key : values.keySet()) {
+                intent.putExtra(key, values.get(key));
+            }
+
+            String intentExtras = (intent.getExtras() != null) ? intent.getExtras().toString() : "";
+            Timber.d("Sent intent '" + intent.getAction() + "' {" + intentExtras + "}");
+
+            //Send intent
+            this.sendBroadcast(intent);
         }
 
-        String intentExtras = (intent.getExtras() != null) ? intent.getExtras().toString() : "";
-        Timber.d("Sent intent '" + intent.getAction() + "' {" + intentExtras + "}");
-
-        //Send intent
-        this.sendBroadcast(intent);
-
-        //Send data to watch
-        updateWatchApp();
+        // Send broadcast for sports app
+        if(prefBCSportsApp) {
+            //Send data to watch
+            updateWatchApp();
+        }
 
         resetChanged();
     }
 
     public void setStopped() {
-        //Stop watch Sports App
-        stopWatchApp();
 
         this.state = STATE_STOPPED;
         this.setChanged(true);
     }
 
     public void setRunning() {
-
-        // Customize pebble watch app
-        customizeWatchApp();
-
-        //Start watch Sports App
-        startWatchApp();
 
         this.state = STATE_RUNNING;
         this.setChanged(true);
@@ -209,7 +234,9 @@ public class NikeRun extends Application {
         changed = false;
     }
 
-    // Send a broadcast to launch the Sports App on the connected Pebble
+    /**
+     * Send a broadcast to launch the Sports App on the connected Pebble
+     */
     public void startWatchApp() {
         Timber.d("Starting Watch App");
 
@@ -217,13 +244,17 @@ public class NikeRun extends Application {
         PebbleKit.startAppOnPebble(getApplicationContext(), Constants.SPORTS_UUID);
     }
 
-    // Send a broadcast to close Sports App on the connected Pebble
+    /**
+     * Send a broadcast to close Sports App on the connected Pebble
+     */
     public void stopWatchApp() {
         Timber.d("Stopping Watch App");
         PebbleKit.closeAppOnPebble(getApplicationContext(), Constants.SPORTS_UUID);
     }
 
-    // Set customized data for Sports App
+    /**
+     * Set customized data for Sports App
+     */
     public void customizeWatchApp() {
         Timber.d("Customizing watch Sports App");
         final String customAppName = "Nike+ Running";
@@ -233,23 +264,165 @@ public class NikeRun extends Application {
                 getApplicationContext(), Constants.PebbleAppType.SPORTS, customAppName, customIcon);
     }
 
-    // Push (distance, time, pace) data to be displayed on Pebble's Sports App.
+    /**
+     * Set initial data to Watch Sports App
+     */
+    public void initWatchAppData() {
+
+        PebbleDictionary data = new PebbleDictionary();
+
+        data.addString(Constants.SPORTS_TIME_KEY, ":0:");
+        data.addString(Constants.SPORTS_DISTANCE_KEY, ".0.");
+        data.addString(Constants.SPORTS_DATA_KEY, ":0:");
+        data.addUint8(Constants.SPORTS_LABEL_KEY, (byte)Constants.SPORTS_DATA_PACE); // Set pace label
+
+        // Set configured unit type on watch
+        if (prefUnitType == UnitType.KILOMETERS)
+            data.addUint8(Constants.SPORTS_UNITS_KEY, (byte) Constants.SPORTS_UNITS_METRIC);
+        else
+            data.addUint8(Constants.SPORTS_UNITS_KEY, (byte) Constants.SPORTS_UNITS_IMPERIAL);
+
+        PebbleKit.sendDataToPebble(getApplicationContext(), Constants.SPORTS_UUID, data);
+
+        Timber.d("Initialized watch app data");
+    }
+
+    /**
+     * Push (distance, time, pace) data to be displayed on Pebble's Sports App.
+     */
     public void updateWatchApp() {
+
+        /**
+         * Start watch Sports App after every 30 seconds
+         * There seems to be a bug in current PebbleSDK2 Beta4
+         * Sports app disappears from menu after some time (if not active)
+         */
+        if (prefRestartSportsApp) {
+            if(updateCounter > 30) {
+                startWatchApp();
+                updateCounter = 0;
+            }
+            else {
+                updateCounter++;
+            }
+        }
 
         String time = getData(NikeRun.DATA_DURATION);
         String distance = getData(NikeRun.DATA_DISTANCE);
         String pace = getData(NikeRun.DATA_PACE);
 
+        PebbleDictionary data = new PebbleDictionary();
+
+        //Differentiate not running state
+        if (!this.state.equals(STATE_RUNNING)) {
+            time = ":" + time + ":";
+            data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_PAUSED);
+        }
+        else {
+            data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_RUNNING);
+        }
+
         Timber.d("Updating Watch App with values: Dur='" + time + "' Dist='" + distance + "' Pace='" + pace + "'");
 
-        PebbleDictionary data = new PebbleDictionary();
         data.addString(Constants.SPORTS_TIME_KEY, time);
         data.addString(Constants.SPORTS_DISTANCE_KEY, distance);
         data.addString(Constants.SPORTS_DATA_KEY, pace);
         data.addUint8(Constants.SPORTS_LABEL_KEY, (byte)Constants.SPORTS_DATA_PACE); // Set pace label
-        data.addUint8(Constants.SPORTS_UNITS_KEY, (byte)Constants.SPORTS_UNITS_METRIC); // Unit metrics
+
+        // Send configured unit type to pebble
+        if (prefUnitType == UnitType.KILOMETERS)
+            data.addUint8(Constants.SPORTS_UNITS_KEY, (byte) Constants.SPORTS_UNITS_METRIC);
+        else
+            data.addUint8(Constants.SPORTS_UNITS_KEY, (byte) Constants.SPORTS_UNITS_IMPERIAL);
 
         PebbleKit.sendDataToPebble(getApplicationContext(), Constants.SPORTS_UUID, data);
+    }
+
+    /**
+     * Handle Nike+ run created
+     */
+    public void runCreated() {
+
+        // Load preferences for every new run
+        loadSavedPreferences();
+
+        Timber.d("New run created");
+
+        // Ignore launching sports app if not configured
+        if (!prefBCSportsApp)
+            return;
+
+        // Register handler to receive button events from pebble
+        sportsDataHandler = new PebbleKit.PebbleDataReceiver(Constants.SPORTS_UUID) {
+            @Override
+            public void receiveData(final Context context, final int transactionId, final PebbleDictionary data) {
+                int newState = data.getUnsignedInteger(Constants.SPORTS_STATE_KEY).intValue();
+
+                // Broadcast intent to NikeRunXPosed for changing Nike+ running state
+                Intent intent = new Intent();
+                intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+                intent.setAction(NikeRun.INTENT_XCMD);
+                intent.putExtra("sportsstate", newState);
+
+                //Send intent
+                context.sendBroadcast(intent);
+
+                PebbleKit.sendAckToPebble(context, transactionId);
+
+                Timber.d("Sports App state changed: %d", newState);
+            }
+        };
+        PebbleKit.registerReceivedDataHandler(this, sportsDataHandler);
+
+        // Customize pebble watch app
+        customizeWatchApp();
+
+        // Start watch Sports App
+        startWatchApp();
+
+        // Wait a while before pushing data to watch app
+        try { Thread.sleep(1000); } catch (Exception e) { Timber.d("Error in sleep: " + e.getMessage()); };
+
+        // Init watch app data
+        initWatchAppData();
+    }
+
+    /**
+     * Handle Nike+ run destroyed
+     */
+    public void runDestroyed() {
+
+        Timber.d("Run destroyed");
+
+        //De-register Sports App handler
+        if (sportsDataHandler != null) {
+            unregisterReceiver(sportsDataHandler);
+            sportsDataHandler = null;
+        }
+
+        //Stop watch Sports App
+        stopWatchApp();
+    }
+
+    /**
+     * Load saved preferences
+     */
+    private void loadSavedPreferences() {
+
+        // Load saved preferences
+        try {
+            SharedPreferences savedPref = PreferenceManager.getDefaultSharedPreferences(this);
+            prefBCMusic = savedPref.getBoolean("pref_sendBCMusic", true);
+            prefBCSportsApp = savedPref.getBoolean("pref_sendBCSportsApp", true);
+            prefRestartSportsApp = savedPref.getBoolean("pref_restartSportsApp", true);
+            prefUnitType = UnitType.values()[Integer.parseInt(savedPref.getString("pref_unit", "0"))];
+        } catch (Exception ex) {
+            Timber.e("Error while loading saved preferences: " + ex.getMessage());
+        }
+
+        // Log loaded prefs
+        Timber.d("Preferences loaded: BCMusic=" + prefBCMusic + ", BCSports=" + prefBCSportsApp +
+                ", RestartSports=" + prefRestartSportsApp + ", UnitType=" + prefUnitType);
     }
 
 }
