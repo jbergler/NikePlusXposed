@@ -28,6 +28,11 @@ public class MediaReceiver extends BroadcastReceiver {
             intent.getStringExtra("album")
         );
 
+        // Handle music play/pause to control run activity
+        if (intent.getAction().equals("com.android.music.playstatechanged") && intent.hasExtra("playing")) {
+                appContext.musicPlayStateChanged(intent.getBooleanExtra("playing", false));
+        }
+
         // Ensure that we send out our updated version straight away.
         if (appContext.isRunning()) appContext.sendUpdatedMetadata();
     }
