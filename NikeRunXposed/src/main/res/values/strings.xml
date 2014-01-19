@@ -13,5 +13,9 @@
     <string name="pref_restart_sports">Restart Sports app </string>
     <string name="pref_restart_sports_summary_on">Pebble Sports app will re-launch every 30 seconds during run</string>
     <string name="pref_restart_sports_summary_off">Pebble Sports app will NOT re-launch automatically during run</string>
+    <string name="pref_bind_to_music_play_state">Bind music play state</string>
+    <string name="pref_bind_to_music_summary_on">Run activity will pause/resume with music playing state</string>
+    <string name="pref_bind_to_music_summary_off">Run activity will not affect on play/pause music</string>
+    <string name="pref_enable_logging">Enable debug logs</string>
 
 </resources>
