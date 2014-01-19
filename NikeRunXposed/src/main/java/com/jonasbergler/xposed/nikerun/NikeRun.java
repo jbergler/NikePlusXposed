@@ -73,6 +73,9 @@ public class NikeRun extends Application {
     private boolean prefBCMusic = true;
     private boolean prefBCSportsApp = true;
     private boolean prefRestartSportsApp = true;
+    private boolean prefBindToMusic = true;
+    //private boolean prefEnableLogging = false;
+    private boolean pauseFlag = true;
     public UnitType prefUnitType = UnitType.KILOMETERS;
 
     @Override
@@ -159,6 +162,13 @@ public class NikeRun extends Application {
      * Trigger the updated metadata to be sent via a broadcast intent.
      */
     public void sendUpdatedMetadata() {
+
+        // Send broadcast for sports app
+        if(prefBCSportsApp) {
+            //Send data to watch
+            updateWatchApp();
+        }
+
         if (!this.changed) return;
 
         // Send broadcast for music app
@@ -181,12 +191,6 @@ public class NikeRun extends Application {
 
             //Send intent
             this.sendBroadcast(intent);
-        }
-
-        // Send broadcast for sports app
-        if(prefBCSportsApp) {
-            //Send data to watch
-            updateWatchApp();
         }
 
         resetChanged();
@@ -241,7 +245,7 @@ public class NikeRun extends Application {
         Timber.d("Starting Watch App");
 
         //Trigger Sports App
-        PebbleKit.startAppOnPebble(getApplicationContext(), Constants.SPORTS_UUID);
+        PebbleKit.startAppOnPebble(this, Constants.SPORTS_UUID);
     }
 
     /**
@@ -249,7 +253,7 @@ public class NikeRun extends Application {
      */
     public void stopWatchApp() {
         Timber.d("Stopping Watch App");
-        PebbleKit.closeAppOnPebble(getApplicationContext(), Constants.SPORTS_UUID);
+        PebbleKit.closeAppOnPebble(this, Constants.SPORTS_UUID);
     }
 
     /**
@@ -261,30 +265,7 @@ public class NikeRun extends Application {
         final Bitmap customIcon = BitmapFactory.decodeResource(getResources(), R.drawable.watch);
 
         PebbleKit.customizeWatchApp(
-                getApplicationContext(), Constants.PebbleAppType.SPORTS, customAppName, customIcon);
-    }
-
-    /**
-     * Set initial data to Watch Sports App
-     */
-    public void initWatchAppData() {
-
-        PebbleDictionary data = new PebbleDictionary();
-
-        data.addString(Constants.SPORTS_TIME_KEY, ":0:");
-        data.addString(Constants.SPORTS_DISTANCE_KEY, ".0.");
-        data.addString(Constants.SPORTS_DATA_KEY, ":0:");
-        data.addUint8(Constants.SPORTS_LABEL_KEY, (byte)Constants.SPORTS_DATA_PACE); // Set pace label
-
-        // Set configured unit type on watch
-        if (prefUnitType == UnitType.KILOMETERS)
-            data.addUint8(Constants.SPORTS_UNITS_KEY, (byte) Constants.SPORTS_UNITS_METRIC);
-        else
-            data.addUint8(Constants.SPORTS_UNITS_KEY, (byte) Constants.SPORTS_UNITS_IMPERIAL);
-
-        PebbleKit.sendDataToPebble(getApplicationContext(), Constants.SPORTS_UUID, data);
-
-        Timber.d("Initialized watch app data");
+                this, Constants.PebbleAppType.SPORTS, customAppName, customIcon);
     }
 
     /**
@@ -314,9 +295,24 @@ public class NikeRun extends Application {
         PebbleDictionary data = new PebbleDictionary();
 
         //Differentiate not running state
-        if (!this.state.equals(STATE_RUNNING)) {
-            time = ":" + time + ":";
+        if (this.state.equals(STATE_PAUSED)) {
+            if (pauseFlag) {
+                time = "-";
+            }
+            pauseFlag = !pauseFlag;
+            //time = ":" + time + ":";
             data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_PAUSED);
+        }
+        else if (this.state.equals(STATE_STOPPED)) {
+
+            //De-register Sports App handler
+            if (sportsDataHandler != null) {
+                unregisterReceiver(sportsDataHandler);
+                sportsDataHandler = null;
+            }
+
+            pace = "----";
+            data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_END);
         }
         else {
             data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_RUNNING);
@@ -335,7 +331,7 @@ public class NikeRun extends Application {
         else
             data.addUint8(Constants.SPORTS_UNITS_KEY, (byte) Constants.SPORTS_UNITS_IMPERIAL);
 
-        PebbleKit.sendDataToPebble(getApplicationContext(), Constants.SPORTS_UUID, data);
+        PebbleKit.sendDataToPebble(this, Constants.SPORTS_UUID, data);
     }
 
     /**
@@ -356,7 +352,10 @@ public class NikeRun extends Application {
         sportsDataHandler = new PebbleKit.PebbleDataReceiver(Constants.SPORTS_UUID) {
             @Override
             public void receiveData(final Context context, final int transactionId, final PebbleDictionary data) {
+
                 int newState = data.getUnsignedInteger(Constants.SPORTS_STATE_KEY).intValue();
+
+                PebbleKit.sendAckToPebble(context, transactionId);
 
                 // Broadcast intent to NikeRunXPosed for changing Nike+ running state
                 Intent intent = new Intent();
@@ -366,8 +365,6 @@ public class NikeRun extends Application {
 
                 //Send intent
                 context.sendBroadcast(intent);
-
-                PebbleKit.sendAckToPebble(context, transactionId);
 
                 Timber.d("Sports App state changed: %d", newState);
             }
@@ -379,12 +376,6 @@ public class NikeRun extends Application {
 
         // Start watch Sports App
         startWatchApp();
-
-        // Wait a while before pushing data to watch app
-        try { Thread.sleep(1000); } catch (Exception e) { Timber.d("Error in sleep: " + e.getMessage()); };
-
-        // Init watch app data
-        initWatchAppData();
     }
 
     /**
@@ -415,6 +406,8 @@ public class NikeRun extends Application {
             prefBCMusic = savedPref.getBoolean("pref_sendBCMusic", true);
             prefBCSportsApp = savedPref.getBoolean("pref_sendBCSportsApp", true);
             prefRestartSportsApp = savedPref.getBoolean("pref_restartSportsApp", true);
+            prefBindToMusic = savedPref.getBoolean("pref_bindToMusicPlayState", true);
+            //prefEnableLogging = savedPref.getBoolean("pref_enableLogging", false);
             prefUnitType = UnitType.values()[Integer.parseInt(savedPref.getString("pref_unit", "0"))];
         } catch (Exception ex) {
             Timber.e("Error while loading saved preferences: " + ex.getMessage());
@@ -423,6 +416,32 @@ public class NikeRun extends Application {
         // Log loaded prefs
         Timber.d("Preferences loaded: BCMusic=" + prefBCMusic + ", BCSports=" + prefBCSportsApp +
                 ", RestartSports=" + prefRestartSportsApp + ", UnitType=" + prefUnitType);
+    }
+
+    /**
+     * Handle music play state change
+     * @param isPlaying
+     */
+    public void musicPlayStateChanged(boolean isPlaying) {
+
+        if (prefBindToMusic == false) return;
+
+        Timber.d("Changing run state due to music play state change: isPlaying=" + isPlaying);
+
+        int newState = Constants.SPORTS_STATE_PAUSED;
+
+        if (isPlaying)
+            newState = Constants.SPORTS_STATE_RUNNING;
+
+        // Broadcast intent to NikeRunXPosed for changing Nike+ running state
+        Intent intent = new Intent();
+        intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+        intent.setAction(NikeRun.INTENT_XCMD);
+        intent.putExtra("sportsstate", newState);
+
+        //Send intent
+        this.sendBroadcast(intent);
+
     }
 
 }
