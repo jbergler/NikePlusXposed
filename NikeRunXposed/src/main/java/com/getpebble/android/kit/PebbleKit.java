@@ -8,6 +8,7 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.util.Base64;
+import android.util.Log;
 import com.getpebble.android.kit.Constants.*;
 import com.getpebble.android.kit.util.PebbleDictionary;
 import com.google.common.primitives.UnsignedInteger;
@@ -56,8 +57,8 @@ public final class PebbleKit {
      *         in either dimension.
      *
      * @throws IllegalArgumentException
-     *         Thrown if the specified name or icon are invalid. {@link PebbleAppType#SPORTS} or {@link
-     *         PebbleAppType#GOLF}.
+     *         Thrown if the specified name or icon are invalid. {@link com.getpebble.android.kit.Constants.PebbleAppType#SPORTS} or {@link
+     *         com.getpebble.android.kit.Constants.PebbleAppType#GOLF}.
      */
     public static void customizeWatchApp(final Context context, final PebbleAppType appType,
                                          final String name, final Bitmap icon) throws IllegalArgumentException {
@@ -189,7 +190,7 @@ public final class PebbleKit {
      *         The context used to send the broadcast.
      * @param watchappUuid
      *         A UUID uniquely identifying the target application. UUIDs for the stock PebbleKit applications are
-     *         available in {@link Constants}.
+     *         available in {@link com.getpebble.android.kit.Constants}.
      *
      * @throws IllegalArgumentException
      *         Thrown if the specified UUID is invalid.
@@ -214,7 +215,7 @@ public final class PebbleKit {
      *         The context used to send the broadcast.
      * @param watchappUuid
      *         A UUID uniquely identifying the target application. UUIDs for the stock kit applications are available in
-     *         {@link Constants}.
+     *         {@link com.getpebble.android.kit.Constants}.
      *
      * @throws IllegalArgumentException
      *         Thrown if the specified UUID is invalid.
@@ -242,10 +243,10 @@ public final class PebbleKit {
      *         The context used to send the broadcast.
      * @param watchappUuid
      *         A UUID uniquely identifying the target application. UUIDs for the stock kit applications are available in
-     *         {@link Constants}.
+     *         {@link com.getpebble.android.kit.Constants}.
      * @param data
      *         A dictionary containing one-or-more key-value pairs. For more information about the types of data that
-     *         can be stored, see {@link PebbleDictionary}.
+     *         can be stored, see {@link com.getpebble.android.kit.util.PebbleDictionary}.
      *
      * @throws IllegalArgumentException
      *         Thrown in the specified PebbleDictionary or UUID is invalid.
@@ -266,10 +267,10 @@ public final class PebbleKit {
      *         The context used to send the broadcast.
      * @param watchappUuid
      *         A UUID uniquely identifying the target application. UUIDs for the stock kit applications are available in
-     *         {@link Constants}.
+     *         {@link com.getpebble.android.kit.Constants}.
      * @param data
      *         A dictionary containing one-or-more key-value pairs. For more information about the types of data that
-     *         can be stored, see {@link PebbleDictionary}.
+     *         can be stored, see {@link com.getpebble.android.kit.util.PebbleDictionary}.
      * @param transactionId
      *         An integer uniquely identifying the transaction. This can be used to correlate messages sent to the
      *         Pebble and ACK/NACKs received from the Pebble.
@@ -365,7 +366,7 @@ public final class PebbleKit {
      *
      * @return The registered receiver.
      *
-     * @see Constants#INTENT_PEBBLE_CONNECTED
+     * @see com.getpebble.android.kit.Constants#INTENT_PEBBLE_CONNECTED
      */
     public static BroadcastReceiver registerPebbleConnectedReceiver(final Context context,
                                                                     final BroadcastReceiver receiver) {
@@ -386,7 +387,7 @@ public final class PebbleKit {
      *
      * @return The registered receiver.
      *
-     * @see Constants#INTENT_PEBBLE_DISCONNECTED
+     * @see com.getpebble.android.kit.Constants#INTENT_PEBBLE_DISCONNECTED
      */
     public static BroadcastReceiver registerPebbleDisconnectedReceiver(final Context context,
                                                                        final BroadcastReceiver receiver) {
@@ -406,7 +407,7 @@ public final class PebbleKit {
      *
      * @return The registered receiver.
      *
-     * @see Constants#INTENT_APP_RECEIVE
+     * @see com.getpebble.android.kit.Constants#INTENT_APP_RECEIVE
      */
     public static BroadcastReceiver registerReceivedDataHandler(final Context context,
                                                                 final PebbleDataReceiver receiver) {
@@ -428,7 +429,7 @@ public final class PebbleKit {
      *
      * @return The registered receiver.
      *
-     * @see Constants#INTENT_APP_RECEIVE_ACK
+     * @see com.getpebble.android.kit.Constants#INTENT_APP_RECEIVE_ACK
      */
     public static BroadcastReceiver registerReceivedAckHandler(final Context context,
                                                                final PebbleAckReceiver receiver) {
@@ -449,7 +450,7 @@ public final class PebbleKit {
      *
      * @return The registered receiver.
      *
-     * @see Constants#INTENT_APP_RECEIVE_NACK
+     * @see com.getpebble.android.kit.Constants#INTENT_APP_RECEIVE_NACK
      */
     public static BroadcastReceiver registerReceivedNackHandler(final Context context,
                                                                 final PebbleNackReceiver receiver) {
@@ -639,6 +640,11 @@ public final class PebbleKit {
         private final UUID subscribedUuid;
 
         /**
+         * The last data ID we've seen. Ignore subsequent intents for this same ID.
+         */
+        private int lastDataId;
+
+        /**
          * Instantiates a new pebble nack receiver.
          *
          * @param subscribedUuid
@@ -716,6 +722,80 @@ public final class PebbleKit {
         }
 
         /**
+         * Called when a session has been finished on the watch and all data has been transmitted by pebble.apk
+         *
+         * @param context
+         *         The BroadcastReceiver's context.
+         * @param logUuid
+         *         The UUID that uniquely identifies a data log.
+         * @param timestamp
+         *         The timestamp when a data log was first created.
+         * @param tag
+         *         The user-defined tag for the corresponding data log.
+         */
+        public void onFinishSession(final Context context, UUID logUuid, final UnsignedInteger timestamp,
+                                    final UnsignedInteger tag) {
+            // Do nothing by default
+        }
+
+        private void handleReceiveDataIntent(final Context context, final Intent intent, final UUID logUuid,
+                                             final UnsignedInteger timestamp, final UnsignedInteger tag) {
+            final int dataId = intent.getIntExtra(PBL_DATA_ID, -1);
+            if (dataId < 0) throw new IllegalArgumentException();
+
+            Log.i("pebble", "DataID: " + dataId + " LastDataID: " + lastDataId);
+
+            if (dataId == lastDataId) {
+                // If we see the same dataId multiple times, just ignore it.
+                return;
+            }
+
+            final PebbleDataType type = PebbleDataType.fromByte(intent.getByteExtra(PBL_DATA_TYPE, PebbleDataType.INVALID.ord));
+            if (type == null) throw new IllegalArgumentException();
+
+            switch (type) {
+                case BYTES:
+                    byte[] bytes = Base64.decode(intent.getStringExtra(PBL_DATA_OBJECT), Base64.NO_WRAP);
+                    if (bytes == null) {
+                        throw new IllegalArgumentException();
+                    }
+
+                    receiveData(context, logUuid, timestamp, tag, bytes);
+                    break;
+                case UINT:
+                    UnsignedInteger uint = (UnsignedInteger) intent.getSerializableExtra(PBL_DATA_OBJECT);
+                    if (uint == null) {
+                        throw new IllegalArgumentException();
+                    }
+
+                    receiveData(context, logUuid, timestamp, tag, uint);
+                    break;
+                case INT:
+                    Integer i = (Integer) intent.getSerializableExtra(PBL_DATA_OBJECT);
+                    if (i == null) {
+                        throw new IllegalArgumentException();
+                    }
+
+                    receiveData(context, logUuid, timestamp, tag, i.intValue());
+                    break;
+                default:
+                    throw new IllegalArgumentException("Invalid type:" + type.toString());
+            }
+
+            lastDataId = dataId;
+
+            final Intent ackIntent = new Intent(INTENT_DL_ACK_DATA);
+            ackIntent.putExtra(DATA_LOG_UUID, logUuid);
+            ackIntent.putExtra(PBL_DATA_ID, dataId);
+            context.sendBroadcast(ackIntent);
+        }
+
+        private void handleFinishSessionIntent(final Context context, final Intent intent, final UUID logUuid,
+                                               final UnsignedInteger timestamp, final UnsignedInteger tag) {
+            onFinishSession(context, logUuid, timestamp, tag);
+        }
+
+        /**
          * {@inheritDoc}
          */
         @Override
@@ -727,13 +807,11 @@ public final class PebbleKit {
                 return;
             }
 
-            final UUID logUuid;
-            final UnsignedInteger timestamp;
-            final UnsignedInteger tag;
-            final int dataId;
-            final PebbleDataType type;
-
             try {
+                final UUID logUuid;
+                final UnsignedInteger timestamp;
+                final UnsignedInteger tag;
+
                 logUuid = (UUID) intent.getSerializableExtra(DATA_LOG_UUID);
                 if (logUuid == null) throw new IllegalArgumentException();
 
@@ -742,50 +820,16 @@ public final class PebbleKit {
 
                 tag = (UnsignedInteger) intent.getSerializableExtra(DATA_LOG_TAG);
                 if (tag == null) throw new IllegalArgumentException();
-                dataId = intent.getIntExtra(PBL_DATA_ID, -1);
-                if (dataId < 0) throw new IllegalArgumentException();
 
-                type = PebbleDataType.fromByte(intent.getByteExtra(PBL_DATA_TYPE, PebbleDataType.INVALID.ord));
-                if (type == null) throw new IllegalArgumentException();
-
-                switch (type) {
-                    case BYTES:
-                        byte[] bytes = Base64.decode(intent.getStringExtra(PBL_DATA_OBJECT), Base64.NO_WRAP);
-                        if (bytes == null) {
-                            throw new IllegalArgumentException();
-                        }
-
-                        receiveData(context, logUuid, timestamp, tag, bytes);
-                        break;
-                    case UINT:
-                        UnsignedInteger uint = (UnsignedInteger) intent.getSerializableExtra(PBL_DATA_OBJECT);
-                        if (uint == null) {
-                            throw new IllegalArgumentException();
-                        }
-
-                        receiveData(context, logUuid, timestamp, tag, uint);
-                        break;
-                    case INT:
-                        Integer i = (Integer) intent.getSerializableExtra(PBL_DATA_OBJECT);
-                        if (i == null) {
-                            throw new IllegalArgumentException();
-                        }
-
-                        receiveData(context, logUuid, timestamp, tag, i.intValue());
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Invalid type:" + type.toString());
+                if (intent.getAction() == INTENT_DL_RECEIVE_DATA) {
+                    handleReceiveDataIntent(context, intent, logUuid, timestamp, tag);
+                } else if (intent.getAction() == INTENT_DL_FINISH_SESSION) {
+                    handleFinishSessionIntent(context, intent, logUuid, timestamp, tag);
                 }
-
             } catch (IllegalArgumentException e) {
                 e.printStackTrace();
                 return;
             }
-
-            final Intent ackIntent = new Intent(INTENT_DL_ACK_DATA);
-            ackIntent.putExtra(DATA_LOG_UUID, logUuid);
-            ackIntent.putExtra(PBL_DATA_ID, dataId);
-            context.sendBroadcast(ackIntent);
         }
     }
 
@@ -803,11 +847,16 @@ public final class PebbleKit {
      *
      * @return The registered receiver.
      *
-     * @see Constants#INTENT_DL_RECEIVE_DATA
+     * @see com.getpebble.android.kit.Constants#INTENT_DL_RECEIVE_DATA
      */
     public static BroadcastReceiver registerDataLogReceiver(final Context context,
                                                             final PebbleDataLogReceiver receiver) {
-        return registerBroadcastReceiverInternal(context, INTENT_DL_RECEIVE_DATA, receiver);
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(INTENT_DL_RECEIVE_DATA);
+        filter.addAction(INTENT_DL_FINISH_SESSION);
+        context.registerReceiver(receiver, filter);
+
+        return receiver;
     }
 
     /**
@@ -824,8 +873,8 @@ public final class PebbleKit {
      *
      * @return The registered receiver.
      *
-     * @see Constants#INTENT_DL_RECEIVE_DATA
-     * @see Constants#INTENT_DL_REQUEST_DATA
+     * @see com.getpebble.android.kit.Constants#INTENT_DL_RECEIVE_DATA
+     * @see com.getpebble.android.kit.Constants#INTENT_DL_REQUEST_DATA
      */
     public static void requestDataLogsForApp(final Context context, final UUID appUuid) {
         final Intent requestIntent = new Intent(INTENT_DL_REQUEST_DATA);

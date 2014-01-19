@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * A key-value pair stored in a {@link PebbleDictionary}.
+ * A key-value pair stored in a {@link com.getpebble.android.kit.util.PebbleDictionary}.
  *
  * @author zulak@getpebble.com
  */
