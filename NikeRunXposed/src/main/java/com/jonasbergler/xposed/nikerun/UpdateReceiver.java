@@ -79,8 +79,12 @@ public class UpdateReceiver extends BroadcastReceiver {
         int hours   = (int) ((raw / (1000*60*60)) % 24);
 
         String time = "";
-        if (hours > 0) time += hours + ":";
-        time += String.format("%d:%02d", minutes, seconds);
+        if (hours > 0) {
+            time += String.format("%d:%02d:%02d", hours, minutes, seconds);
+        }
+        else {
+            time += String.format("%d:%02d", minutes, seconds);
+        }
 
         return time.trim();
     }
