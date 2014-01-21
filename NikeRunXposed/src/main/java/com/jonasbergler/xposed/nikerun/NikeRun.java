@@ -74,8 +74,9 @@ public class NikeRun extends Application {
     private boolean prefBCSportsApp = true;
     private boolean prefRestartSportsApp = true;
     private boolean prefBindToMusic = true;
-    //private boolean prefEnableLogging = false;
+    private boolean prefEnableLogging = false;
     private boolean pauseFlag = true;
+    private boolean runCreated = false;
     public UnitType prefUnitType = UnitType.KILOMETERS;
 
     @Override
@@ -107,9 +108,16 @@ public class NikeRun extends Application {
         // Initialise data
         for (String field : DATA) setData(field, "");
         updateCounter = 0;
+        runCreated = false;
 
-        // Setup Debugging
-        Timber.plant(new DebugTree());
+        // Load saved configurations
+        loadSavedPreferences();
+
+        // Setup Debug
+        if (prefEnableLogging)
+            Timber.plant(new DebugTree());
+
+        Timber.d("NikeRunXposed process created");
     }
 
     /**
@@ -162,6 +170,9 @@ public class NikeRun extends Application {
      * Trigger the updated metadata to be sent via a broadcast intent.
      */
     public void sendUpdatedMetadata() {
+
+        // Ignore updates if run is not yet created
+        if (!runCreated) return;
 
         // Send broadcast for sports app
         if(prefBCSportsApp) {
@@ -339,10 +350,13 @@ public class NikeRun extends Application {
      */
     public void runCreated() {
 
+        Timber.d("New run created");
+
+        // Set flag
+        runCreated = true;
+
         // Load preferences for every new run
         loadSavedPreferences();
-
-        Timber.d("New run created");
 
         // Ignore launching sports app if not configured
         if (!prefBCSportsApp)
@@ -385,14 +399,20 @@ public class NikeRun extends Application {
 
         Timber.d("Run destroyed");
 
-        //De-register Sports App handler
+        // Reset flag
+        runCreated = false;
+
+        // De-register Sports App handler
         if (sportsDataHandler != null) {
             unregisterReceiver(sportsDataHandler);
             sportsDataHandler = null;
         }
 
-        //Stop watch Sports App
+        // Stop watch Sports App
         stopWatchApp();
+
+        // Force stop process
+        System.exit(0);
     }
 
     /**
@@ -407,7 +427,7 @@ public class NikeRun extends Application {
             prefBCSportsApp = savedPref.getBoolean("pref_sendBCSportsApp", true);
             prefRestartSportsApp = savedPref.getBoolean("pref_restartSportsApp", true);
             prefBindToMusic = savedPref.getBoolean("pref_bindToMusicPlayState", true);
-            //prefEnableLogging = savedPref.getBoolean("pref_enableLogging", false);
+            prefEnableLogging = savedPref.getBoolean("pref_enableLogging", false);
             prefUnitType = UnitType.values()[Integer.parseInt(savedPref.getString("pref_unit", "0"))];
         } catch (Exception ex) {
             Timber.e("Error while loading saved preferences: " + ex.getMessage());
@@ -415,7 +435,7 @@ public class NikeRun extends Application {
 
         // Log loaded prefs
         Timber.d("Preferences loaded: BCMusic=" + prefBCMusic + ", BCSports=" + prefBCSportsApp +
-                ", RestartSports=" + prefRestartSportsApp + ", UnitType=" + prefUnitType);
+                ", RestartSports=" + prefRestartSportsApp + ", UnitType=" + prefUnitType + ", BindToMusic=" + prefBindToMusic);
     }
 
     /**
@@ -443,5 +463,4 @@ public class NikeRun extends Application {
         this.sendBroadcast(intent);
 
     }
-
 }
