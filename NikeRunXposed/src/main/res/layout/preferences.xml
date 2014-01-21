@@ -32,8 +32,8 @@
         android:summaryOn="@string/pref_bind_to_music_summary_on"
         android:summaryOff="@string/pref_bind_to_music_summary_off"
         android:checked="true" />
-    <!--<CheckBoxPreference-->
-        <!--android:key="pref_enableLogging"-->
-        <!--android:title="@string/pref_enable_logging"-->
-        <!--android:checked="false" />-->
+    <CheckBoxPreference
+        android:key="pref_enableLogging"
+        android:title="@string/pref_enable_logging"
+        android:checked="false" />
 </PreferenceScreen>
