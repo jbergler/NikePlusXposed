@@ -17,6 +17,7 @@ import com.getpebble.android.kit.Constants;
 import com.getpebble.android.kit.PebbleKit;
 import com.getpebble.android.kit.util.PebbleDictionary;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -74,7 +75,6 @@ public class NikeRun extends Application {
     private boolean prefBCSportsApp = true;
     private boolean prefRestartSportsApp = true;
     private boolean prefBindToMusic = true;
-    private boolean prefEnableLogging = false;
     private boolean pauseFlag = true;
     private boolean runCreated = false;
     public UnitType prefUnitType = UnitType.KILOMETERS;
@@ -110,11 +110,12 @@ public class NikeRun extends Application {
         updateCounter = 0;
         runCreated = false;
 
-        // Load saved configurations
-        loadSavedPreferences();
-
-        // Setup Debug
-        if (prefEnableLogging)
+        /**
+         * Setup debug only if configured
+         * PS: Dummy file flag need to be used instead of reading from shared preferences
+         *     because on reading shared preferences here, MODE_WORLD_READABLE was overridden
+         */
+        if (new File("/data/data/" + MY_PACKAGE + "/.debug").exists())
             Timber.plant(new DebugTree());
 
         Timber.d("NikeRunXposed process created");
@@ -410,9 +411,6 @@ public class NikeRun extends Application {
 
         // Stop watch Sports App
         stopWatchApp();
-
-        // Force stop process
-        System.exit(0);
     }
 
     /**
@@ -427,10 +425,10 @@ public class NikeRun extends Application {
             prefBCSportsApp = savedPref.getBoolean("pref_sendBCSportsApp", true);
             prefRestartSportsApp = savedPref.getBoolean("pref_restartSportsApp", true);
             prefBindToMusic = savedPref.getBoolean("pref_bindToMusicPlayState", true);
-            prefEnableLogging = savedPref.getBoolean("pref_enableLogging", false);
             prefUnitType = UnitType.values()[Integer.parseInt(savedPref.getString("pref_unit", "0"))];
         } catch (Exception ex) {
-            Timber.e("Error while loading saved preferences: " + ex.getMessage());
+            //Timber.e("Error while loading saved preferences: " + ex.getMessage());
+            ex.printStackTrace();
         }
 
         // Log loaded prefs
