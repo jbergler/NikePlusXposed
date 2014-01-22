@@ -34,13 +34,21 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
 
     private long lastUpdated = 0;
     private BroadcastReceiver mBroadcastReceiver = null;
-    private boolean pauseOnLaunch = true;
+    private boolean prefEnableLogging = true;
+
+    private void log(String msg) {
+        if (prefEnableLogging)
+            XposedBridge.log(msg);
+    }
 
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
-        if (!lpparam.packageName.equals("com.nike.plusgps"))
+        if (!lpparam.packageName.equals("com.nike.plusgps")) {
             return;
-        else
-            XposedBridge.log("NikeRun: NikeRunning load detected.");
+        } else {
+            XSharedPreferences savedPref = new XSharedPreferences(NikeRun.MY_PACKAGE);
+            prefEnableLogging = savedPref.getBoolean("pref_enableLogging", true);
+            log("NikeRun: NikeRunning load detected.");
+        }
 
         findAndHookMethod("com.nike.plusgps.RunActivity", lpparam.classLoader, "startRun",new XC_MethodHook() {
             @Override
@@ -52,12 +60,13 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 intent.setAction(NikeRun.INTENT_START);
                 context.sendBroadcast(intent);
 
-                XposedBridge.log("NikeRun: Run Started");
+                log("NikeRun: Run Started");
 
                 // Load saved preferences
                 XSharedPreferences savedPref = new XSharedPreferences(NikeRun.MY_PACKAGE);
-                pauseOnLaunch = savedPref.getBoolean("pref_pauseRunOnStart", true);
-                XposedBridge.log("Preferences loaded: PauseOnLaunch=" + pauseOnLaunch);
+                boolean pauseOnLaunch = savedPref.getBoolean("pref_pauseRunOnStart", false);
+                prefEnableLogging = savedPref.getBoolean("pref_enableLogging", true);
+                log("Preferences loaded: PauseOnLaunch=" + pauseOnLaunch + ", EnableLogging=" + prefEnableLogging);
 
                 // If run is to be paused on start then call pauseRun method
                 if (pauseOnLaunch == true) {
@@ -83,32 +92,32 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                         String xcmd = intent.getAction();
                         assert xcmd !=null;
 
-                        XposedBridge.log("Processing XCMD: '" + xcmd + "' {" + intentExtras  + "}");
+                        log("Processing XCMD: '" + xcmd + "' {" + intentExtras  + "}");
 
                         if (xcmd.equals(NikeRun.INTENT_XCMD)) {
                             int newState = intent.getIntExtra("sportsstate", Constants.SPORTS_STATE_INIT);
 
                             if (runControlInstance == null) {
-                                XposedBridge.log("No run instance found, hence cannot set run state: " + newState);
+                                log("No run instance found, hence cannot set run state: " + newState);
                                 return;
                             }
 
                             switch (newState){
                                 case Constants.SPORTS_STATE_RUNNING:
                                     callMethod(runControlInstance, "resumeRun");
-                                    XposedBridge.log("State 'Running' sent to Nike+");
+                                    log("State 'Running' sent to Nike+");
                                     break;
                                 case Constants.SPORTS_STATE_PAUSED:
                                     callMethod(runControlInstance, "pauseRun");
-                                    XposedBridge.log("State 'Paused' sent to Nike+");
+                                    log("State 'Paused' sent to Nike+");
                                     break;
                                 default:
-                                    XposedBridge.log("State '" + newState + "' not handled");
+                                    log("State '" + newState + "' not handled");
                             }
 
                         }
                         else {
-                            XposedBridge.log("Unknown XCMD received: " + xcmd);
+                            log("Unknown XCMD received: " + xcmd);
                         }
 
                     }
@@ -121,7 +130,7 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 intent.setAction(NikeRun.INTENT_CREATE);
                 context.sendBroadcast(intent);
 
-                XposedBridge.log("NikeRun: Run Create");
+                log("NikeRun: Run Create");
             }
         });
 
@@ -134,17 +143,20 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 // Reset run control instance on activity destroy
                 if (mBroadcastReceiver != null)
                 {
-                    XposedBridge.log("NikeRun: broadcast receiver is not null, so unregister");
+                    log("NikeRun: broadcast receiver is not null, so unregister");
                     context.unregisterReceiver(mBroadcastReceiver);
                     mBroadcastReceiver = null;
                 }
+
+                // Nullify the objects that are no longer required
+                runControlInstance = null;
 
                 Intent intent = new Intent();
                 intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
                 intent.setAction(NikeRun.INTENT_DESTROY);
                 context.sendBroadcast(intent);
 
-                XposedBridge.log("NikeRun: Run Destroy");
+                log("NikeRun: Run Destroy");
             }
         });
 
@@ -158,7 +170,7 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 intent.setAction(NikeRun.INTENT_STOP);
                 context.sendBroadcast(intent);
 
-                XposedBridge.log("NikeRun: Run Finished");
+                log("NikeRun: Run Finished");
             }
         });
 
@@ -172,7 +184,7 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 intent.setAction(NikeRun.INTENT_STOP);
                 context.sendBroadcast(intent);
 
-                XposedBridge.log("NikeRun: Run Cancelled");
+                log("NikeRun: Run Cancelled");
             }
         });
 
@@ -188,7 +200,7 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 intent.setAction(NikeRun.INTENT_PAUSE);
                 context.sendBroadcast(intent);
 
-                XposedBridge.log("NikeRun: Run Paused => " + paused);
+                log("NikeRun: Run Paused => " + paused);
             }
         });
 
@@ -202,7 +214,7 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 intent.setAction(NikeRun.INTENT_RESUME);
                 context.sendBroadcast(intent);
 
-                XposedBridge.log("NikeRun: Run Resumed");
+                log("NikeRun: Run Resumed");
             }
         });
 
@@ -227,10 +239,10 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 String duration = String.format("%.0f", durationRaw / 1000);
                 String pace = String.format("%d", (int) paceRaw);
 
-//                XposedBridge.log("NikeRun: updateScreenInfo()");
-//                XposedBridge.log("NikeRun: distance=" + distanceRaw + " / " + distance);
-//                XposedBridge.log("NikeRun: duration=" + durationRaw + " / " + duration);
-//                XposedBridge.log("NikeRun: pace=" + paceRaw + " / " + pace);
+//                log("NikeRun: updateScreenInfo()");
+//                log("NikeRun: distance=" + distanceRaw + " / " + distance);
+//                log("NikeRun: duration=" + durationRaw + " / " + duration);
+//                log("NikeRun: pace=" + paceRaw + " / " + pace);
 
                 Context context = (Context) callMethod(param.thisObject, "getApplicationContext");
                 Intent intent = new Intent();
@@ -243,7 +255,7 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
 
                 lastUpdated = System.currentTimeMillis();
 
-                XposedBridge.log("NikeRun: Data Update");
+                log("NikeRun: Data Update");
             }
         });
 
