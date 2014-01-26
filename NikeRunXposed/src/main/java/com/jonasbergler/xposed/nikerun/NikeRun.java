@@ -49,7 +49,9 @@ public class NikeRun extends Application {
     public static final String DATA_TRACK = "track";
     public static final String DATA_ARTIST = "artist";
     public static final String DATA_ALBUM = "album";
-    public static final String[] DATA = {DATA_DURATION, DATA_DISTANCE, DATA_PACE, DATA_TRACK, DATA_ARTIST, DATA_ALBUM};
+    public static final String DATA_UNIT = "unit";
+    public static final String DATA_GPS = "gps";
+    public static final String[] DATA = {DATA_DURATION, DATA_DISTANCE, DATA_PACE, DATA_TRACK, DATA_ARTIST, DATA_ALBUM, DATA_GPS};
 
     public static final String STATE_STOPPED = "stopped";
     public static final String STATE_PAUSED = "paused";
@@ -75,9 +77,9 @@ public class NikeRun extends Application {
     private boolean prefBCSportsApp = true;
     private boolean prefRestartSportsApp = true;
     private boolean prefBindToMusic = true;
-    private boolean pauseFlag = true;
+    private boolean flashFlag = true;
     private boolean runCreated = false;
-    public UnitType prefUnitType = UnitType.KILOMETERS;
+    private UnitType prefUnitType = UnitType.KILOMETERS;
 
     @Override
     public void onCreate() {
@@ -89,8 +91,8 @@ public class NikeRun extends Application {
 
         this.formats.put(STATE_RUNNING, new HashMap<String, String>(){{
             put(FIELD_TRACK, "#distance#\n#duration#");
-            put(FIELD_ARTIST, "#track#");
-            put(FIELD_ALBUM, "#artist#");
+            put(FIELD_ARTIST, "#track# - #artist#");
+            put(FIELD_ALBUM, "#pace#");
         }});
 
         this.formats.put(STATE_PAUSED, new HashMap<String, String>(){{
@@ -153,9 +155,15 @@ public class NikeRun extends Application {
 
             if (matcher.group(1).equals(DATA_DISTANCE)) {
                 if (prefUnitType == UnitType.KILOMETERS)
-                    replacement += "km";
+                    replacement += " km";
                 else
-                    replacement += "mi";
+                    replacement += " mi";
+            }
+            else if (matcher.group(1).equals(DATA_PACE)) {
+                if (prefUnitType == UnitType.KILOMETERS)
+                    replacement += "/km";
+                else
+                    replacement += "/mi";
             }
 
             if (replacement != null) {
@@ -285,11 +293,7 @@ public class NikeRun extends Application {
      */
     public void updateWatchApp() {
 
-        /**
-         * Start watch Sports App after every 30 seconds
-         * There seems to be a bug in current PebbleSDK2 Beta4
-         * Sports app disappears from menu after some time (if not active)
-         */
+        // Start watch Sports App after every 30 seconds if configured
         if (prefRestartSportsApp) {
             if(updateCounter > 30) {
                 startWatchApp();
@@ -303,21 +307,29 @@ public class NikeRun extends Application {
         String time = getData(NikeRun.DATA_DURATION);
         String distance = getData(NikeRun.DATA_DISTANCE);
         String pace = getData(NikeRun.DATA_PACE);
+        String gps_status = getData(NikeRun.DATA_GPS);
+        String gps_notify = "";
+        if (gps_status.equals("WEAK"))
+            gps_notify = "0";
+        else if (gps_status.equals("FAIR"))
+            gps_notify = "1";
+        //else if (gps_status.equals("STRONG"))
+          //  gps_notify = "2";
 
         PebbleDictionary data = new PebbleDictionary();
 
-        //Differentiate not running state
+        // Differentiate not running states
         if (this.state.equals(STATE_PAUSED)) {
-            if (pauseFlag) {
-                time = "-";
+            if (gps_notify != "" && !flashFlag) {
+                time = "-" + gps_notify + "-";
             }
-            pauseFlag = !pauseFlag;
-            //time = ":" + time + ":";
-            data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_PAUSED);
+            else if (flashFlag){
+                time = ":"+ time +":";
+            }
         }
         else if (this.state.equals(STATE_STOPPED)) {
 
-            //De-register Sports App handler
+            // De-register Sports App handler
             if (sportsDataHandler != null) {
                 unregisterReceiver(sportsDataHandler);
                 sportsDataHandler = null;
@@ -327,8 +339,14 @@ public class NikeRun extends Application {
             data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_END);
         }
         else {
+            if (gps_notify != "" && flashFlag) {
+                time = "-" + gps_notify + "-";
+            }
             data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_RUNNING);
         }
+
+        // Toggle flash flag
+        flashFlag = !flashFlag;
 
         Timber.d("Updating Watch App with values: Dur='" + time + "' Dist='" + distance + "' Pace='" + pace + "'");
 
@@ -352,6 +370,9 @@ public class NikeRun extends Application {
     public void runCreated() {
 
         Timber.d("New run created");
+
+        // Reset all data
+        for (String field : DATA) setData(field, "");
 
         // Set flag
         runCreated = true;
@@ -425,7 +446,7 @@ public class NikeRun extends Application {
             prefBCSportsApp = savedPref.getBoolean("pref_sendBCSportsApp", true);
             prefRestartSportsApp = savedPref.getBoolean("pref_restartSportsApp", true);
             prefBindToMusic = savedPref.getBoolean("pref_bindToMusicPlayState", true);
-            prefUnitType = UnitType.values()[Integer.parseInt(savedPref.getString("pref_unit", "0"))];
+            //prefUnitType = UnitType.values()[Integer.parseInt(savedPref.getString("pref_unit", "0"))];
         } catch (Exception ex) {
             //Timber.e("Error while loading saved preferences: " + ex.getMessage());
             ex.printStackTrace();
@@ -433,7 +454,7 @@ public class NikeRun extends Application {
 
         // Log loaded prefs
         Timber.d("Preferences loaded: BCMusic=" + prefBCMusic + ", BCSports=" + prefBCSportsApp +
-                ", RestartSports=" + prefRestartSportsApp + ", UnitType=" + prefUnitType + ", BindToMusic=" + prefBindToMusic);
+                ", RestartSports=" + prefRestartSportsApp + ", BindToMusic=" + prefBindToMusic);
     }
 
     /**
@@ -460,5 +481,16 @@ public class NikeRun extends Application {
         //Send intent
         this.sendBroadcast(intent);
 
+    }
+
+    /**
+     * Set unit type configured in Nike+ app
+     * @param unit km or mi
+     */
+    public void setUnitType(String unit) {
+        if (unit.equals("mi"))
+            prefUnitType = UnitType.MILES;
+        else
+            prefUnitType = UnitType.KILOMETERS;
     }
 }

@@ -35,6 +35,8 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
     private long lastUpdated = 0;
     private BroadcastReceiver mBroadcastReceiver = null;
     private boolean prefEnableLogging = true;
+    private Object confDistUnit = null;
+    private boolean isRunIndoor = true;
 
     private void log(String msg) {
         if (prefEnableLogging)
@@ -54,10 +56,17 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 
+                // Get configured distance Unit type in Nike+ app
+                Object profileDao = getObjectField(param.thisObject, "profileDao");
+                confDistUnit = callMethod(profileDao, "getDistanceUnit");
+                Object run = getObjectField(param.thisObject, "currentRun");
+                isRunIndoor = getBooleanField(run, "indoor");
+
                 Context context = (Context) callMethod(param.thisObject, "getApplicationContext");
                 Intent intent = new Intent();
                 intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
                 intent.setAction(NikeRun.INTENT_START);
+                intent.putExtra(NikeRun.DATA_UNIT, confDistUnit.toString());
                 context.sendBroadcast(intent);
 
                 log("NikeRun: Run Started");
@@ -77,12 +86,26 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
         });
 
         findAndHookMethod("com.nike.plusgps.RunActivity", lpparam.classLoader, "onCreate", android.os.Bundle.class, new XC_MethodHook() {
+
+            /*@Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+
+                Context context = (Context) callMethod(param.thisObject, "getApplicationContext");
+
+                Intent intent = new Intent();
+                intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+                intent.setAction(NikeRun.INTENT_CREATE);
+                context.sendBroadcast(intent);
+
+                log("NikeRun: Run Create");
+            }*/
+
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 
                 // Register broadcast receiver in NikeRunXposed process to pause/resume run
-                Object runAct = (Object) getObjectField(param.thisObject, "runInfoAndControlView");
-                runControlInstance = runAct;
+                runControlInstance = (Object) getObjectField(param.thisObject, "runInfoAndControlView");
+
                 Context context = (Context) callMethod(param.thisObject, "getApplicationContext");
                 mBroadcastReceiver = new BroadcastReceiver() {
                     @Override
@@ -150,6 +173,7 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
 
                 // Nullify the objects that are no longer required
                 runControlInstance = null;
+                confDistUnit = null;
 
                 Intent intent = new Intent();
                 intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
@@ -223,13 +247,36 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 
                 Object run = (Object) getObjectField(param.thisObject, "currentRun");
-                float distanceRaw = (float) getFloatField(((Object) callMethod(run, "getDistanceUnitValue")), "value");
+                Object distUnitValObj = callMethod(run,"getDistanceUnitValue");
+
+                // Get distance value based on unit type
+                float distanceRaw;
+                if (confDistUnit == null || confDistUnit.toString().equals("km")) {
+                    log("NikeRun: Default dist val");
+                    distanceRaw = (float) getFloatField(distUnitValObj, "value");
+                }
+                else {
+                    log("NikeRun: Calucated dist val");
+                    distanceRaw = (float) getFloatField(callMethod(distUnitValObj,"in", new Object[]{confDistUnit}),"value");
+                }
+
+                // Get duration and pace
                 float durationRaw = (float) getFloatField(((Object) callMethod(run, "getDurationUnitValue")), "value");
                 double paceRaw = (double) getDoubleField(run, "currentPace");
 
                 // Convert current pace value to seconds/km
                 if (paceRaw != 0) {
                     paceRaw = PACE_MAGIC_NUM / paceRaw;
+
+                    /**
+                     * Pace for km is found in sync with what is displayed on Nike+ running app,
+                     * but pace for miles is some-how not being calculated exactly same as on Nike+
+                     * app. Error of ~30 seconds is found in case of miles.
+                     */
+                    if (confDistUnit != null && confDistUnit.toString().equals("mi")) {
+                        log("NikeRun: Changing pace to miles");
+                        paceRaw = paceRaw / 0.62137119223733;
+                    }
                 }
 
                 // Fix distance on watch sometimes being little ahead of nike+ app
@@ -251,6 +298,17 @@ public class NikeRunXposed implements IXposedHookLoadPackage {
                 intent.putExtra(NikeRun.DATA_DURATION, duration);
                 intent.putExtra(NikeRun.DATA_DISTANCE, distance);
                 intent.putExtra(NikeRun.DATA_PACE, pace);
+
+                // Get GPS status when run is not indoor
+                if (!isRunIndoor) {
+                    // DISABLED, FAIR, STRONG, WEAK
+                    Object gpsSignal = getObjectField(param.thisObject, "gpsSignal");
+                    intent.putExtra(NikeRun.DATA_GPS, gpsSignal.toString());
+
+                    log("NikeRun: Packing GPS data=" + gpsSignal);
+                }
+
+                // Send intent to main app
                 context.sendBroadcast(intent);
 
                 lastUpdated = System.currentTimeMillis();

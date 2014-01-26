@@ -22,6 +22,7 @@ public class UpdateReceiver extends BroadcastReceiver {
         assert action != null;
 
         if (action.equals(NikeRun.INTENT_START)) {
+            appContext.setUnitType(intent.getStringExtra(NikeRun.DATA_UNIT));
             appContext.setRunning();
         }
         else if (action.equals(NikeRun.INTENT_STOP)) {
@@ -36,20 +37,8 @@ public class UpdateReceiver extends BroadcastReceiver {
         else if (action.equals(NikeRun.INTENT_UPDATE)) {
             appContext.setData(NikeRun.DATA_DISTANCE, intent.getStringExtra(NikeRun.DATA_DISTANCE));
             appContext.setData(NikeRun.DATA_DURATION,formatSeconds(intent.getStringExtra(NikeRun.DATA_DURATION)));
-
-            // Convert pace from km to mi, if configured
-            int pace = Integer.parseInt(intent.getStringExtra(NikeRun.DATA_PACE));
-
-            /**
-             * Pace for km is found in sync with what is displayed on Nike+ running app,
-             * but pace for miles is some-how not being calculated exactly same as on Nike+
-             * app. Error of ~30 seconds is found in case of miles.
-             */
-            if (appContext.prefUnitType == NikeRun.UnitType.MILES) {
-                pace = (int) (pace / 0.62137119223733);
-            }
-
-            appContext.setData(NikeRun.DATA_PACE, formatSeconds(pace));
+            appContext.setData(NikeRun.DATA_PACE, formatSeconds(Integer.parseInt(intent.getStringExtra(NikeRun.DATA_PACE))));
+            if (intent.hasExtra(NikeRun.DATA_GPS)) appContext.setData(NikeRun.DATA_GPS, intent.getStringExtra(NikeRun.DATA_GPS));
         }
         else if (action.equals(NikeRun.INTENT_DESTROY)) {
             appContext.runDestroyed();

@@ -21,8 +21,7 @@ public class SettingsActivity extends Activity {
             getFragmentManager().beginTransaction().replace(android.R.id.content, new PrefFragment()).commit();
     }
 
-    public static class PrefFragment extends PreferenceFragment
-            implements SharedPreferences.OnSharedPreferenceChangeListener {
+    public static class PrefFragment extends PreferenceFragment {
 
         private boolean initLoggingMode = false;
 
@@ -33,13 +32,11 @@ public class SettingsActivity extends Activity {
 
             getPreferenceManager().setSharedPreferencesMode(MODE_WORLD_READABLE);
             addPreferencesFromResource(R.layout.preferences);
-            updateListSummary("pref_unit");
         }
 
         @Override
         public void onResume() {
             super.onResume();
-            getPreferenceScreen().getSharedPreferences().registerOnSharedPreferenceChangeListener(this);
 
             // Save initial logging mode
             initLoggingMode = ((CheckBoxPreference) findPreference("pref_enableLogging")).isChecked();
@@ -48,7 +45,6 @@ public class SettingsActivity extends Activity {
         @Override
         public void onPause() {
             super.onPause();
-            getPreferenceScreen().getSharedPreferences().unregisterOnSharedPreferenceChangeListener(this);
 
             /**
              * If logging mode is changed then create/delete debug flag file and
@@ -79,17 +75,6 @@ public class SettingsActivity extends Activity {
             }
         }
 
-        public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-            if (key.equals("pref_unit")) {
-                updateListSummary(key);
-            }
-        }
-
-        private void updateListSummary(String key) {
-            ListPreference savePref = (ListPreference) findPreference(key);
-            // Set summary to be the user-description for the selected value
-            savePref.setSummary(savePref.getEntry());
-        }
     }
 
 }

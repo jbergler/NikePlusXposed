@@ -5,8 +5,6 @@
 
     <string name="title_activity_settings">Pebble Nike+ Settings</string>
 
-    <string name="pref_unit">Unit type</string>
-    <string name="pref_unit_default">0</string>
     <string name="pref_send_music">Broadcast to Music app</string>
     <string name="pref_send_sports">Broadcast to Sports app</string>
     <string name="pref_pause_on_start">Pause run on start</string>

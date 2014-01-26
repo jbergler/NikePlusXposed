@@ -2,12 +2,6 @@
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" android:layout_height="wrap_content"
     android:layout_width="fill_parent">
-    <ListPreference
-        android:key="pref_unit"
-        android:title="@string/pref_unit"
-        android:entries="@array/pref_unit_entries"
-        android:entryValues="@array/pref_unit_values"
-        android:defaultValue="@string/pref_unit_default" />
     <CheckBoxPreference
         android:key="pref_sendBCMusic"
         android:title="@string/pref_send_music"
