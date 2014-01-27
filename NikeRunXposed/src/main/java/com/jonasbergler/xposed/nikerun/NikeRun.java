@@ -62,6 +62,8 @@ public class NikeRun extends Application {
     public static final String FIELD_ALBUM = "album";
     public static final String[] FIELDS = {FIELD_TRACK, FIELD_ARTIST, FIELD_ALBUM};
 
+    private static final int TXN_ID_UPDATE_DATA = 1;
+
     public enum UnitType {KILOMETERS, MILES}
 
     private boolean changed = false;
@@ -71,7 +73,10 @@ public class NikeRun extends Application {
     private Map<String, Map<String, String>> formats;
 
     private PebbleKit.PebbleDataReceiver sportsDataHandler = null;
-    private int updateCounter;
+    private PebbleKit.PebbleAckReceiver updateDataAckHandler = null;
+    private PebbleKit.PebbleNackReceiver updateDataNackHandler = null;
+
+    private int nackCounter;
 
     private boolean prefBCMusic = true;
     private boolean prefBCSportsApp = true;
@@ -109,7 +114,7 @@ public class NikeRun extends Application {
 
         // Initialise data
         for (String field : DATA) setData(field, "");
-        updateCounter = 0;
+        nackCounter = 0;
         runCreated = false;
 
         /**
@@ -293,17 +298,6 @@ public class NikeRun extends Application {
      */
     public void updateWatchApp() {
 
-        // Start watch Sports App after every 30 seconds if configured
-        if (prefRestartSportsApp) {
-            if(updateCounter > 30) {
-                startWatchApp();
-                updateCounter = 0;
-            }
-            else {
-                updateCounter++;
-            }
-        }
-
         String time = getData(NikeRun.DATA_DURATION);
         String distance = getData(NikeRun.DATA_DISTANCE);
         String pace = getData(NikeRun.DATA_PACE);
@@ -329,11 +323,8 @@ public class NikeRun extends Application {
         }
         else if (this.state.equals(STATE_STOPPED)) {
 
-            // De-register Sports App handler
-            if (sportsDataHandler != null) {
-                unregisterReceiver(sportsDataHandler);
-                sportsDataHandler = null;
-            }
+            // De-register handlers
+            deregisterHandlers();
 
             pace = "----";
             data.addUint16(Constants.SPORTS_STATE_KEY, (short) Constants.SPORTS_STATE_END);
@@ -361,7 +352,25 @@ public class NikeRun extends Application {
         else
             data.addUint8(Constants.SPORTS_UNITS_KEY, (byte) Constants.SPORTS_UNITS_IMPERIAL);
 
-        PebbleKit.sendDataToPebble(this, Constants.SPORTS_UUID, data);
+        PebbleKit.sendDataToPebbleWithTransactionId(this, Constants.SPORTS_UUID, data, TXN_ID_UPDATE_DATA);
+    }
+
+    /**
+     * De-register all active handlers
+     */
+    private void deregisterHandlers() {
+        if (sportsDataHandler != null) {
+            unregisterReceiver(sportsDataHandler);
+            sportsDataHandler = null;
+        }
+        if (updateDataAckHandler != null) {
+            unregisterReceiver(updateDataAckHandler);
+            updateDataAckHandler = null;
+        }
+        if (updateDataNackHandler != null) {
+            unregisterReceiver(updateDataNackHandler);
+            updateDataNackHandler = null;
+        }
     }
 
     /**
@@ -407,6 +416,44 @@ public class NikeRun extends Application {
         };
         PebbleKit.registerReceivedDataHandler(this, sportsDataHandler);
 
+        // Register ACK handler
+        updateDataAckHandler = new PebbleKit.PebbleAckReceiver(Constants.SPORTS_UUID) {
+
+            @Override
+            public void receiveAck(Context context, int transactionId) {
+                if (transactionId != TXN_ID_UPDATE_DATA)
+                    return;
+                Timber.d("Update data acknowledged");
+
+                // Reset nackCounter
+                nackCounter = 0;
+            }
+        };
+        PebbleKit.registerReceivedAckHandler(this, updateDataAckHandler);
+
+        // Register NACK handler
+        updateDataNackHandler = new PebbleKit.PebbleNackReceiver(Constants.SPORTS_UUID) {
+
+            @Override
+            public void receiveNack(Context context, int transactionId) {
+                if (transactionId != TXN_ID_UPDATE_DATA)
+                    return;
+                Timber.d("Update data not acknowledged");
+
+                // Start watch Sports App after 30 seconds of first NACK received (if configured)
+                if (prefRestartSportsApp) {
+                    if(nackCounter > 30) {
+                        startWatchApp();
+                        nackCounter = 0;
+                    }
+                    else {
+                        nackCounter++;
+                    }
+                }
+            }
+        };
+        PebbleKit.registerReceivedNackHandler(this, updateDataNackHandler);
+
         // Customize pebble watch app
         customizeWatchApp();
 
@@ -424,11 +471,8 @@ public class NikeRun extends Application {
         // Reset flag
         runCreated = false;
 
-        // De-register Sports App handler
-        if (sportsDataHandler != null) {
-            unregisterReceiver(sportsDataHandler);
-            sportsDataHandler = null;
-        }
+        // De-register handlers
+        deregisterHandlers();
 
         // Stop watch Sports App
         stopWatchApp();
@@ -446,7 +490,6 @@ public class NikeRun extends Application {
             prefBCSportsApp = savedPref.getBoolean("pref_sendBCSportsApp", true);
             prefRestartSportsApp = savedPref.getBoolean("pref_restartSportsApp", true);
             prefBindToMusic = savedPref.getBoolean("pref_bindToMusicPlayState", true);
-            //prefUnitType = UnitType.values()[Integer.parseInt(savedPref.getString("pref_unit", "0"))];
         } catch (Exception ex) {
             //Timber.e("Error while loading saved preferences: " + ex.getMessage());
             ex.printStackTrace();
