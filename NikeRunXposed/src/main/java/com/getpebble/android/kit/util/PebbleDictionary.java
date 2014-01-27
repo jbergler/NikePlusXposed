@@ -303,7 +303,7 @@ public class PebbleDictionary implements Iterable<PebbleTuple> {
      * @param jsonString
      *         the JSON representation to be deserialized
      *
-     * @throws JSONException
+     * @throws org.json.JSONException
      *         thrown if the specified JSON representation cannot be parsed
      */
     public static PebbleDictionary fromJson(String jsonString) throws JSONException {

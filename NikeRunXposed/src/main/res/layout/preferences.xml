@@ -2,12 +2,6 @@
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" android:layout_height="wrap_content"
     android:layout_width="fill_parent">
-    <ListPreference
-        android:key="pref_unit"
-        android:title="@string/pref_unit"
-        android:entries="@array/pref_unit_entries"
-        android:entryValues="@array/pref_unit_values"
-        android:defaultValue="@string/pref_unit_default" />
     <CheckBoxPreference
         android:key="pref_sendBCMusic"
         android:title="@string/pref_send_music"
@@ -26,5 +20,14 @@
         android:summaryOn="@string/pref_restart_sports_summary_on"
         android:summaryOff="@string/pref_restart_sports_summary_off"
         android:checked="true" />
-
+    <CheckBoxPreference
+        android:key="pref_bindToMusicPlayState"
+        android:title="@string/pref_bind_to_music_play_state"
+        android:summaryOn="@string/pref_bind_to_music_summary_on"
+        android:summaryOff="@string/pref_bind_to_music_summary_off"
+        android:checked="true" />
+    <CheckBoxPreference
+        android:key="pref_enableLogging"
+        android:title="@string/pref_enable_logging"
+        android:checked="false" />
 </PreferenceScreen>

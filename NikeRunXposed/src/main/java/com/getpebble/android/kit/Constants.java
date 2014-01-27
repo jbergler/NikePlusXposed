@@ -83,6 +83,11 @@ public final class Constants {
     public static final String INTENT_DL_REQUEST_DATA = "com.getpebble.action.dl.REQUEST_DATA";
 
     /**
+     * Intent broadcast from pebble.apk indicating the session has finished.
+     */
+    public static final String INTENT_DL_FINISH_SESSION = "com.getpebble.action.dl.FINISH_SESSION";
+
+    /**
      * The UUID corresponding to Pebble's built-in "Sports" application.
      */
     public static final UUID SPORTS_UUID = UUID.fromString("4dab81a6-d2fc-458a-992c-7a1f3b96a970");
